@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { normalizePhone } from '../lib/utils'
-import QrScanner from '../components/QrScanner'
 
 const msgColors = {
   success: 'bg-green-50 text-green-700 border border-green-200',
@@ -35,7 +34,6 @@ export default function OwnerPanel() {
   const [actionMsg, setActionMsg] = useState({ text: '', type: '' })
   const [stampLoading, setStampLoading] = useState(false)
   const [rewardLoading, setRewardLoading] = useState(false)
-  const [showScanner, setShowScanner] = useState(false)
 
   // --- Add customer tab state ---
   const [newName, setNewName] = useState('')
@@ -192,10 +190,6 @@ export default function OwnerPanel() {
     await searchByPhone(searchPhone)
   }
 
-  function handleQrScan(phone) {
-    setShowScanner(false)
-    searchByPhone(phone)
-  }
 
   async function addStamp() {
     if (!foundCustomer) return
@@ -440,20 +434,6 @@ export default function OwnerPanel() {
         {/* ===== SEARCH TAB ===== */}
         {activeTab === 'search' && (
           <div className="space-y-4 pt-2">
-            {/* QR scan button */}
-            <button
-              onClick={() => setShowScanner(true)}
-              className="w-full bg-amber-700 text-white py-3 rounded-xl font-semibold hover:bg-amber-800 active:scale-95 transition-all flex items-center justify-center gap-2 text-base"
-            >
-              📷 Scan Customer QR
-            </button>
-
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs text-gray-400">or search manually</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-
             <form onSubmit={searchCustomer} className="flex gap-2">
               <input
                 type="tel"
@@ -652,12 +632,6 @@ export default function OwnerPanel() {
       </div>
     </div>
 
-    {showScanner && (
-      <QrScanner
-        onScan={handleQrScan}
-        onClose={() => setShowScanner(false)}
-      />
-    )}
-    </>
+</>
   )
 }
