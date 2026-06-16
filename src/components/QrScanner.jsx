@@ -4,10 +4,17 @@ import { normalizePhone } from '../lib/utils'
 
 const ELEMENT_ID = 'stamply-qr-reader'
 
+async function safeStop(instance) {
+  try {
+    await instance.stop()
+  } catch (_) {}
+}
+
 export default function QrScanner({ onScan, onClose }) {
   const [errorMsg, setErrorMsg] = useState('')
   const qrRef = useRef(null)
   const activeRef = useRef(false)
+  const stoppedRef = useRef(false)
 
   useEffect(() => {
     let instance
@@ -24,14 +31,14 @@ export default function QrScanner({ onScan, onClose }) {
             if (!activeRef.current) return
             handleDecoded(text, instance)
           },
-          () => {} // per-frame misses — ignore
+          () => {}
         )
         activeRef.current = true
       } catch (err) {
-        const msg = err?.message ?? ''
-        if (msg.toLowerCase().includes('permission') || msg.toLowerCase().includes('denied')) {
+        const msg = (err?.message ?? '').toLowerCase()
+        if (msg.includes('permission') || msg.includes('denied')) {
           setErrorMsg('Camera permission denied. Please allow camera access in your browser settings.')
-        } else if (msg.toLowerCase().includes('no cameras')) {
+        } else if (msg.includes('no cameras')) {
           setErrorMsg('No camera found on this device.')
         } else {
           setErrorMsg('Could not start camera. Make sure no other app is using it.')
@@ -43,34 +50,42 @@ export default function QrScanner({ onScan, onClose }) {
 
     return () => {
       activeRef.current = false
-      qrRef.current?.stop().catch(() => {})
+      // Only stop if handleDecoded hasn't already stopped it
+      if (!stoppedRef.current && qrRef.current) {
+        safeStop(qrRef.current)
+      }
     }
   }, [])
 
   function handleDecoded(text, instance) {
-    // Extract phone from URL: …/request-stamp/PHONE
+    if (stoppedRef.current) return
+    stoppedRef.current = true
+    activeRef.current = false
+
     const match = text.match(/\/request-stamp\/([^?#/\s]+)/)
     if (!match) {
+      stoppedRef.current = false
       setErrorMsg('Not a Stamply QR code. Please scan a customer QR.')
       return
     }
 
     const phone = normalizePhone(decodeURIComponent(match[1]))
-    activeRef.current = false
-    instance.stop().catch(() => {}).finally(() => onScan(phone))
+
+    safeStop(instance).then(() => onScan(phone))
   }
 
   async function close() {
     activeRef.current = false
-    await qrRef.current?.stop().catch(() => {})
+    if (!stoppedRef.current) {
+      stoppedRef.current = true
+      await safeStop(qrRef.current)
+    }
     onClose()
   }
 
   return (
     <div className="fixed inset-0 bg-black/75 z-50 flex items-end sm:items-center justify-center">
       <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm overflow-hidden shadow-2xl">
-
-        {/* Header */}
         <div className="px-5 py-4 flex items-center justify-between border-b border-gray-100">
           <h3 className="font-bold text-gray-900">📷 Scan Customer QR</h3>
           <button
@@ -81,7 +96,6 @@ export default function QrScanner({ onScan, onClose }) {
           </button>
         </div>
 
-        {/* Camera area */}
         <div className="px-4 pt-4 pb-2">
           {errorMsg ? (
             <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-4 text-sm text-center mb-3">
@@ -98,8 +112,6 @@ export default function QrScanner({ onScan, onClose }) {
               Point the camera at the customer's QR code
             </p>
           )}
-
-          {/* html5-qrcode renders its camera feed inside this div */}
           <div
             id={ELEMENT_ID}
             className="rounded-2xl overflow-hidden bg-gray-900"
@@ -107,7 +119,6 @@ export default function QrScanner({ onScan, onClose }) {
           />
         </div>
 
-        {/* Cancel */}
         <div className="px-4 py-4">
           <button
             onClick={close}
