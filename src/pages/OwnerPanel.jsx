@@ -70,9 +70,56 @@ export default function OwnerPanel() {
     await searchByPhone(searchPhone)
   }
 
-  function handleQrScan(phone) {
+  async function handleQrScan(phone) {
     setShowScanner(false)
-    searchByPhone(phone)
+    const normalized = normalizePhone(phone)
+    if (!normalized) return
+
+    setSearchPhone(normalized)
+    setSearchLoading(true)
+    setSearchError('')
+    setFoundCustomer(null)
+    setActionMsg({ text: '', type: '' })
+
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('phone', normalized)
+      .single()
+
+    setSearchLoading(false)
+
+    if (error || !data) {
+      setSearchError('No customer found with that phone number.')
+      return
+    }
+
+    // Auto-add stamp immediately on QR scan
+    if (data.stamp_count >= 5) {
+      setFoundCustomer(data)
+      setActionMsg({ text: 'Card is full! Use the reward first.', type: 'warn' })
+      return
+    }
+
+    await supabase.from('stamps').insert({
+      customer_id: data.id,
+      stamped_at: new Date().toISOString(),
+    })
+
+    const { data: updated } = await supabase
+      .from('customers')
+      .update({ stamp_count: data.stamp_count + 1 })
+      .eq('id', data.id)
+      .select()
+      .single()
+
+    setFoundCustomer(updated)
+    setActionMsg({
+      text: updated.stamp_count >= 5
+        ? `🎉 ${updated.name} has earned a free drink!`
+        : `✅ Stamp added! ${updated.name} has ${updated.stamp_count}/5 stamps.`,
+      type: 'success',
+    })
   }
 
   // ====================================================
