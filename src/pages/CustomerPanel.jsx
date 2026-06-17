@@ -59,7 +59,8 @@ export default function CustomerPanel() {
   const stampCount = customer?.stamp_count || 0
   const totalRewards = customer?.total_rewards || 0
   const hasReward = stampCount >= 5
-  const stampsLeft = 5 - stampCount
+  const progressOnCard = Math.min(stampCount, 5)
+  const stampsLeft = 5 - progressOnCard
 
   return (
     <div className="min-h-screen bg-amber-50">
@@ -102,7 +103,7 @@ export default function CustomerPanel() {
           <div className="flex items-center justify-between mb-5">
             <h3 className="font-bold text-gray-900 text-lg">My Stamp Card</h3>
             <span className="text-2xl font-bold text-amber-800">
-              {stampCount}/5
+              {progressOnCard}/5
             </span>
           </div>
 
@@ -112,12 +113,12 @@ export default function CustomerPanel() {
               <div
                 key={i}
                 className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all duration-300 ${
-                  i < stampCount
+                  i < progressOnCard
                     ? 'bg-amber-700 shadow-lg'
                     : 'border-2 border-dashed border-gray-200 bg-gray-50'
                 }`}
               >
-                {i < stampCount ? '☕' : ''}
+                {i < progressOnCard ? '☕' : ''}
               </div>
             ))}
           </div>
@@ -125,7 +126,7 @@ export default function CustomerPanel() {
           {/* Progress message */}
           <p className="text-center text-sm text-gray-500">
             {hasReward
-              ? '🎁 Card full — go collect your free drink!'
+              ? '🎁 You have a reward — show it to the barista!'
               : `${stampsLeft} more stamp${stampsLeft !== 1 ? 's' : ''} until your free drink`}
           </p>
 
@@ -133,13 +134,15 @@ export default function CustomerPanel() {
           <div className="mt-4 bg-gray-100 rounded-full h-2 overflow-hidden">
             <div
               className="bg-amber-600 h-2 rounded-full transition-all duration-500"
-              style={{ width: `${(stampCount / 5) * 100}%` }}
+              style={{ width: `${(progressOnCard / 5) * 100}%` }}
             />
           </div>
 
-          {totalRewards > 0 && (
+          {stampCount > 0 && (
             <p className="text-center text-xs text-gray-400 mt-4 pt-4 border-t border-gray-100">
-              You've earned <strong>{totalRewards}</strong> free drink{totalRewards !== 1 ? 's' : ''} so far — thank you! ❤️
+              {totalRewards > 0
+                ? `${stampCount} stamps total · ${totalRewards} reward${totalRewards !== 1 ? 's' : ''} redeemed ❤️`
+                : `${stampCount} stamp${stampCount !== 1 ? 's' : ''} total`}
             </p>
           )}
         </div>

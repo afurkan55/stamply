@@ -94,13 +94,6 @@ export default function OwnerPanel() {
       return
     }
 
-    // Auto-add stamp immediately on QR scan
-    if (data.stamp_count >= 5) {
-      setFoundCustomer(data)
-      setActionMsg({ text: 'Card is full! Use the reward first.', type: 'warn' })
-      return
-    }
-
     await supabase.from('stamps').insert({
       customer_id: data.id,
       stamped_at: new Date().toISOString(),
@@ -116,8 +109,8 @@ export default function OwnerPanel() {
     setFoundCustomer(updated)
     setActionMsg({
       text: updated.stamp_count >= 5
-        ? `🎉 ${updated.name} has earned a free drink!`
-        : `✅ Stamp added! ${updated.name} has ${updated.stamp_count}/5 stamps.`,
+        ? `🎉 Stamp added! ${updated.name} has a reward available!`
+        : `✅ Stamp added! ${updated.name} has ${updated.stamp_count % 5 || updated.stamp_count}/5 stamps.`,
       type: 'success',
     })
   }
@@ -127,10 +120,6 @@ export default function OwnerPanel() {
   // ====================================================
   async function addStamp() {
     if (!foundCustomer) return
-    if (foundCustomer.stamp_count >= 5) {
-      setActionMsg({ text: 'Stamp card is full. Use the reward first.', type: 'warn' })
-      return
-    }
     setStampLoading(true)
     setActionMsg({ text: '', type: '' })
 
@@ -158,8 +147,8 @@ export default function OwnerPanel() {
       setFoundCustomer(data)
       setActionMsg({
         text: data.stamp_count >= 5
-          ? `🎉 ${data.name} has earned a free drink!`
-          : `Stamp added! ${data.name} has ${data.stamp_count}/5 stamps.`,
+          ? `🎉 Stamp added! ${data.name} has a reward available!`
+          : `✅ Stamp added! ${data.name} has ${data.stamp_count}/5 stamps.`,
         type: 'success',
       })
     }
@@ -169,7 +158,7 @@ export default function OwnerPanel() {
   // USE REWARD
   // ====================================================
   async function markRewardUsed() {
-    if (!foundCustomer || foundCustomer.stamp_count < 5) return
+    if (!foundCustomer || !hasReward) return
     setRewardLoading(true)
     setActionMsg({ text: '', type: '' })
 
@@ -185,7 +174,7 @@ export default function OwnerPanel() {
 
     const { data, error: updateError } = await supabase
       .from('customers')
-      .update({ stamp_count: 0, total_rewards: (foundCustomer.total_rewards || 0) + 1 })
+      .update({ stamp_count: foundCustomer.stamp_count - 5, total_rewards: (foundCustomer.total_rewards || 0) + 1 })
       .eq('id', foundCustomer.id)
       .select()
       .single()
@@ -253,6 +242,7 @@ export default function OwnerPanel() {
   }, [activeTab])
 
   const hasReward = foundCustomer && foundCustomer.stamp_count >= 5
+  const progressOnCard = foundCustomer ? Math.min(foundCustomer.stamp_count, 5) : 0
 
   const tabs = [
     { id: 'search', icon: '🔍', label: 'Search' },
@@ -354,19 +344,20 @@ export default function OwnerPanel() {
 
                   <div>
                     <p className="text-sm text-gray-500 mb-3">
-                      Stamps: <strong className="text-amber-800">{foundCustomer.stamp_count}/5</strong>
+                      Total stamps: <strong className="text-amber-800">{foundCustomer.stamp_count}</strong>
+                      {' · '}Progress: <strong className="text-amber-800">{progressOnCard}/5</strong>
                     </p>
                     <div className="flex gap-3">
                       {Array.from({ length: 5 }).map((_, i) => (
                         <div
                           key={i}
                           className={`w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all ${
-                            i < foundCustomer.stamp_count
+                            i < progressOnCard
                               ? 'bg-amber-700 shadow-md'
                               : 'border-2 border-dashed border-gray-200'
                           }`}
                         >
-                          {i < foundCustomer.stamp_count ? '☕' : ''}
+                          {i < progressOnCard ? '☕' : ''}
                         </div>
                       ))}
                     </div>
@@ -381,7 +372,7 @@ export default function OwnerPanel() {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={addStamp}
-                      disabled={stampLoading || foundCustomer.stamp_count >= 5}
+                      disabled={stampLoading}
                       className="bg-amber-700 text-white py-3 rounded-xl font-semibold hover:bg-amber-800 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {stampLoading ? 'Adding...' : '☕ Add Stamp'}
@@ -395,9 +386,9 @@ export default function OwnerPanel() {
                     </button>
                   </div>
 
-                  {foundCustomer.stamp_count >= 5 && (
+                  {hasReward && (
                     <p className="text-amber-600 text-xs text-center">
-                      Card full — use the reward to reset and keep stamping!
+                      Reward available — use it before adding more stamps!
                     </p>
                   )}
                 </div>
