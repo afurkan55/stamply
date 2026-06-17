@@ -21,6 +21,7 @@ export default function CustomerPanel() {
 
   const [customer, setCustomer] = useState(null)
   const [stamps, setStamps] = useState([])
+  const [rewards, setRewards] = useState([])
   const [loading, setLoading] = useState(true)
 
   function handleLogout() {
@@ -31,7 +32,7 @@ export default function CustomerPanel() {
 
   useEffect(() => {
     async function loadData() {
-      const [{ data: customerData }, { data: stampData }] = await Promise.all([
+      const [{ data: customerData }, { data: stampData }, { data: rewardData }] = await Promise.all([
         supabase.from('customers').select('*').eq('id', customerId).single(),
         supabase
           .from('stamps')
@@ -39,9 +40,15 @@ export default function CustomerPanel() {
           .eq('customer_id', customerId)
           .order('stamped_at', { ascending: false })
           .limit(20),
+        supabase
+          .from('rewards')
+          .select('*')
+          .eq('customer_id', customerId)
+          .order('used_at', { ascending: false }),
       ])
       setCustomer(customerData)
       setStamps(stampData || [])
+      setRewards(rewardData || [])
       setLoading(false)
     }
     loadData()
@@ -124,7 +131,7 @@ export default function CustomerPanel() {
                 >
                   {isFilled ? '☕' : ''}
                   {isMilestone && (
-                    <span className="absolute -top-1 -right-1 text-[9px] leading-none">🎁</span>
+                    <span className="absolute -top-2 -right-2 text-base leading-none">🎁</span>
                   )}
                 </div>
               )
@@ -167,6 +174,29 @@ export default function CustomerPanel() {
               />
             </div>
             <p className="text-xs text-gray-400 mt-3 font-mono">{customer.phone}</p>
+          </div>
+        )}
+
+        {rewards.length > 0 && (
+          <div className="bg-white rounded-3xl shadow-md p-6">
+            <h3 className="font-bold text-gray-900 mb-4">Reward History</h3>
+            <div className="space-y-3">
+              {rewards.map((reward, idx) => (
+                <div key={reward.id} className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-green-100 rounded-full flex items-center justify-center text-base flex-shrink-0">
+                    🎁
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800">
+                      Reward #{rewards.length - idx} redeemed
+                    </p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {formatDate(reward.used_at)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

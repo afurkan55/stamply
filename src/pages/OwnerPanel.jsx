@@ -35,7 +35,7 @@ function StampGrid({ stampCount }) {
           >
             {isFilled ? '☕' : ''}
             {isMilestone && (
-              <span className="absolute -top-1 -right-1 text-[9px] leading-none">🎁</span>
+              <span className="absolute -top-2 -right-2 text-base leading-none">🎁</span>
             )}
           </div>
         )
