@@ -6,7 +6,7 @@ import { supabase } from '../lib/supabase'
 const CARD_SLOTS = 20
 
 function formatDate(dateString) {
-  return new Date(dateString).toLocaleString('en-GB', {
+  return new Date(dateString).toLocaleString(undefined, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
