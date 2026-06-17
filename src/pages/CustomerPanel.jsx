@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import QRCode from 'react-qr-code'
 import { supabase } from '../lib/supabase'
 
+const CARD_SLOTS = 20
+
 function formatDate(dateString) {
   return new Date(dateString).toLocaleString('en-GB', {
     day: 'numeric',
@@ -58,13 +60,15 @@ export default function CustomerPanel() {
 
   const stampCount = customer?.stamp_count || 0
   const totalRewards = customer?.total_rewards || 0
-  const hasReward = stampCount >= 5
-  const progressOnCard = Math.min(stampCount, 5)
-  const stampsLeft = 5 - progressOnCard
+  const rewardsEarned = Math.floor(stampCount / 5)
+  const rewardsAvailable = rewardsEarned - totalRewards
+  const hasReward = rewardsAvailable > 0
+  const progressOnCard = stampCount % 5
+  const stampsLeft = hasReward ? 0 : 5 - progressOnCard
+  const filledSlots = Math.min(stampCount, CARD_SLOTS)
 
   return (
     <div className="min-h-screen bg-amber-50">
-      {/* Header */}
       <header className="bg-amber-800 text-white px-4 py-4 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2">
           <span className="text-xl">☕</span>
@@ -79,7 +83,6 @@ export default function CustomerPanel() {
       </header>
 
       <div className="p-4 max-w-lg mx-auto space-y-4 pb-10">
-        {/* Greeting */}
         <div className="pt-1">
           <h2 className="text-2xl font-bold text-gray-900">
             Hi, {customer?.name}! 👋
@@ -87,53 +90,57 @@ export default function CustomerPanel() {
           <p className="text-gray-500 text-sm">Here's your loyalty card</p>
         </div>
 
-        {/* Reward Banner */}
         {hasReward && (
           <div className="bg-gradient-to-r from-amber-400 to-amber-500 text-white rounded-2xl p-5 text-center shadow-lg">
             <div className="text-4xl mb-2">🎉</div>
-            <p className="font-bold text-xl">You have a free drink!</p>
+            <p className="font-bold text-xl">
+              You have {rewardsAvailable} free drink{rewardsAvailable > 1 ? 's' : ''}!
+            </p>
             <p className="text-amber-100 text-sm mt-1">
               Show this to the barista to redeem your reward.
             </p>
           </div>
         )}
 
-        {/* Stamp Card */}
-        <div className="bg-white rounded-3xl shadow-md p-6">
-          <div className="flex items-center justify-between mb-5">
+        <div className="bg-white rounded-3xl shadow-md p-5">
+          <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-gray-900 text-lg">My Stamp Card</h3>
-            <span className="text-2xl font-bold text-amber-800">
-              {progressOnCard}/5
+            <span className="text-sm font-bold text-amber-800">
+              {stampCount} total
             </span>
           </div>
 
-          {/* Stamp circles */}
-          <div className="flex gap-3 justify-center mb-5">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div
-                key={i}
-                className={`w-14 h-14 rounded-full flex items-center justify-center text-2xl transition-all duration-300 ${
-                  i < progressOnCard
-                    ? 'bg-amber-700 shadow-lg'
-                    : 'border-2 border-dashed border-gray-200 bg-gray-50'
-                }`}
-              >
-                {i < progressOnCard ? '☕' : ''}
-              </div>
-            ))}
+          <div className="grid grid-cols-5 gap-2 mb-4">
+            {Array.from({ length: CARD_SLOTS }).map((_, i) => {
+              const isFilled = i < filledSlots
+              const isMilestone = (i + 1) % 5 === 0
+              return (
+                <div
+                  key={i}
+                  className={`h-12 w-full rounded-full flex items-center justify-center text-xl transition-all duration-300 relative ${
+                    isFilled
+                      ? 'bg-amber-100 border-2 border-amber-500 shadow-sm'
+                      : 'border-2 border-dashed border-gray-200 bg-gray-50'
+                  }`}
+                >
+                  {isFilled ? '☕' : ''}
+                  {isMilestone && (
+                    <span className="absolute -top-1 -right-1 text-[9px] leading-none">🎁</span>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
-          {/* Progress message */}
           <p className="text-center text-sm text-gray-500">
             {hasReward
-              ? '🎁 You have a reward — show it to the barista!'
-              : `${stampsLeft} more stamp${stampsLeft !== 1 ? 's' : ''} until your free drink`}
+              ? `🎁 You have ${rewardsAvailable} reward${rewardsAvailable > 1 ? 's' : ''} — show the barista!`
+              : `${stampsLeft} more stamp${stampsLeft !== 1 ? 's' : ''} until your next free drink`}
           </p>
 
-          {/* Progress bar */}
-          <div className="mt-4 bg-gray-100 rounded-full h-2 overflow-hidden">
+          <div className="mt-3 bg-gray-100 rounded-full h-2 overflow-hidden">
             <div
-              className="bg-amber-600 h-2 rounded-full transition-all duration-500"
+              className="bg-amber-500 h-2 rounded-full transition-all duration-500"
               style={{ width: `${(progressOnCard / 5) * 100}%` }}
             />
           </div>
@@ -147,14 +154,13 @@ export default function CustomerPanel() {
           )}
         </div>
 
-        {/* QR Code */}
         {customer?.phone && (
           <div className="bg-white rounded-3xl shadow-md p-6 text-center">
             <h3 className="font-bold text-gray-900 mb-1">My QR Code</h3>
             <p className="text-gray-500 text-sm mb-5">
-              Show this to the barista to request a stamp
+              Show this to the barista to get a stamp
             </p>
-            <div className="flex justify-center p-4 bg-white rounded-2xl border-2 border-amber-100 inline-block mx-auto">
+            <div className="flex justify-center p-4 bg-white rounded-2xl border-2 border-amber-100">
               <QRCode
                 value={`${window.location.origin}/request-stamp/${customer.phone}`}
                 size={180}
@@ -165,7 +171,6 @@ export default function CustomerPanel() {
           </div>
         )}
 
-        {/* Stamp History */}
         <div className="bg-white rounded-3xl shadow-md p-6">
           <h3 className="font-bold text-gray-900 mb-4">Stamp History</h3>
 
@@ -188,9 +193,6 @@ export default function CustomerPanel() {
                     <p className="text-xs text-gray-400 truncate">
                       {formatDate(stamp.stamped_at)}
                     </p>
-                    {stamp.note && (
-                      <p className="text-xs text-amber-600 italic mt-0.5">{stamp.note}</p>
-                    )}
                   </div>
                 </div>
               ))}

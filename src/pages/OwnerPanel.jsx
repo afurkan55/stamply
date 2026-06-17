@@ -4,17 +4,50 @@ import { supabase } from '../lib/supabase'
 import { normalizePhone } from '../lib/utils'
 import QrScanner from '../components/QrScanner'
 
+const CARD_SLOTS = 20
+
 const msgColors = {
   success: 'bg-green-50 text-green-700 border border-green-200',
   error: 'bg-red-50 text-red-700 border border-red-200',
   warn: 'bg-amber-50 text-amber-700 border border-amber-200',
 }
 
+function rewardsAvailable(customer) {
+  if (!customer) return 0
+  return Math.floor(customer.stamp_count / 5) - (customer.total_rewards || 0)
+}
+
+function StampGrid({ stampCount }) {
+  const filled = Math.min(stampCount, CARD_SLOTS)
+  return (
+    <div className="grid grid-cols-5 gap-2">
+      {Array.from({ length: CARD_SLOTS }).map((_, i) => {
+        const isFilled = i < filled
+        const isMilestone = (i + 1) % 5 === 0
+        return (
+          <div
+            key={i}
+            className={`h-10 w-10 rounded-full flex items-center justify-center text-base transition-all relative ${
+              isFilled
+                ? 'bg-amber-100 border-2 border-amber-500 shadow-sm'
+                : 'border-2 border-dashed border-gray-200 bg-gray-50'
+            }`}
+          >
+            {isFilled ? '☕' : ''}
+            {isMilestone && (
+              <span className="absolute -top-1 -right-1 text-[9px] leading-none">🎁</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function OwnerPanel() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('search')
 
-  // --- Search tab ---
   const [searchPhone, setSearchPhone] = useState('')
   const [foundCustomer, setFoundCustomer] = useState(null)
   const [searchLoading, setSearchLoading] = useState(false)
@@ -24,13 +57,11 @@ export default function OwnerPanel() {
   const [rewardLoading, setRewardLoading] = useState(false)
   const [showScanner, setShowScanner] = useState(false)
 
-  // --- Add customer tab ---
   const [newName, setNewName] = useState('')
   const [newPhone, setNewPhone] = useState('')
   const [addLoading, setAddLoading] = useState(false)
   const [addMsg, setAddMsg] = useState({ text: '', type: '' })
 
-  // --- All customers tab ---
   const [customers, setCustomers] = useState([])
   const [customersLoading, setCustomersLoading] = useState(false)
 
@@ -39,9 +70,6 @@ export default function OwnerPanel() {
     navigate('/')
   }
 
-  // ====================================================
-  // SEARCH
-  // ====================================================
   async function searchByPhone(phone) {
     const normalized = normalizePhone(phone)
     if (!normalized) return
@@ -99,25 +127,24 @@ export default function OwnerPanel() {
       stamped_at: new Date().toISOString(),
     })
 
+    const newCount = data.stamp_count + 1
     const { data: updated } = await supabase
       .from('customers')
-      .update({ stamp_count: data.stamp_count + 1 })
+      .update({ stamp_count: newCount })
       .eq('id', data.id)
       .select()
       .single()
 
     setFoundCustomer(updated)
+    const available = rewardsAvailable(updated)
     setActionMsg({
-      text: updated.stamp_count >= 5
-        ? `🎉 Stamp added! ${updated.name} has a reward available!`
-        : `✅ Stamp added! ${updated.name} has ${updated.stamp_count % 5 || updated.stamp_count}/5 stamps.`,
+      text: available > 0
+        ? `🎉 Stamp added! ${updated.name} has ${available} reward${available > 1 ? 's' : ''} available!`
+        : `✅ Stamp added! ${updated.name} has ${newCount % 5}/5 stamps toward next reward.`,
       type: 'success',
     })
   }
 
-  // ====================================================
-  // ADD STAMP
-  // ====================================================
   async function addStamp() {
     if (!foundCustomer) return
     setStampLoading(true)
@@ -133,9 +160,10 @@ export default function OwnerPanel() {
       return
     }
 
+    const newCount = foundCustomer.stamp_count + 1
     const { data, error: updateError } = await supabase
       .from('customers')
-      .update({ stamp_count: foundCustomer.stamp_count + 1 })
+      .update({ stamp_count: newCount })
       .eq('id', foundCustomer.id)
       .select()
       .single()
@@ -145,20 +173,19 @@ export default function OwnerPanel() {
       setActionMsg({ text: 'Stamp saved but count update failed.', type: 'error' })
     } else {
       setFoundCustomer(data)
+      const available = rewardsAvailable(data)
       setActionMsg({
-        text: data.stamp_count >= 5
-          ? `🎉 Stamp added! ${data.name} has a reward available!`
-          : `✅ Stamp added! ${data.name} has ${data.stamp_count}/5 stamps.`,
+        text: available > 0
+          ? `🎉 Stamp added! ${data.name} has ${available} reward${available > 1 ? 's' : ''} available!`
+          : `✅ Stamp added! ${data.name} has ${newCount % 5}/5 stamps toward next reward.`,
         type: 'success',
       })
     }
   }
 
-  // ====================================================
-  // USE REWARD
-  // ====================================================
   async function markRewardUsed() {
-    if (!foundCustomer || !hasReward) return
+    const available = rewardsAvailable(foundCustomer)
+    if (!foundCustomer || available <= 0) return
     setRewardLoading(true)
     setActionMsg({ text: '', type: '' })
 
@@ -174,7 +201,7 @@ export default function OwnerPanel() {
 
     const { data, error: updateError } = await supabase
       .from('customers')
-      .update({ stamp_count: foundCustomer.stamp_count - 5, total_rewards: (foundCustomer.total_rewards || 0) + 1 })
+      .update({ total_rewards: (foundCustomer.total_rewards || 0) + 1 })
       .eq('id', foundCustomer.id)
       .select()
       .single()
@@ -184,13 +211,16 @@ export default function OwnerPanel() {
       setActionMsg({ text: 'Reward recorded but update failed.', type: 'error' })
     } else {
       setFoundCustomer(data)
-      setActionMsg({ text: `✅ Reward used! ${data.name}'s card has been reset.`, type: 'success' })
+      const stillAvailable = rewardsAvailable(data)
+      setActionMsg({
+        text: stillAvailable > 0
+          ? `✅ Reward used! ${data.name} still has ${stillAvailable} more reward${stillAvailable > 1 ? 's' : ''}.`
+          : `✅ Reward used! ${data.name}'s card continues.`,
+        type: 'success',
+      })
     }
   }
 
-  // ====================================================
-  // ADD CUSTOMER
-  // ====================================================
   async function addCustomer(e) {
     e.preventDefault()
     if (!newName.trim() || !newPhone.trim()) return
@@ -227,9 +257,6 @@ export default function OwnerPanel() {
     }
   }
 
-  // ====================================================
-  // ALL CUSTOMERS
-  // ====================================================
   async function loadCustomers() {
     setCustomersLoading(true)
     const { data } = await supabase.from('customers').select('*').order('name')
@@ -241,8 +268,7 @@ export default function OwnerPanel() {
     if (activeTab === 'customers') loadCustomers()
   }, [activeTab])
 
-  const hasReward = foundCustomer && foundCustomer.stamp_count >= 5
-  const progressOnCard = foundCustomer ? Math.min(foundCustomer.stamp_count, 5) : 0
+  const hasReward = rewardsAvailable(foundCustomer) > 0
 
   const tabs = [
     { id: 'search', icon: '🔍', label: 'Search' },
@@ -253,7 +279,6 @@ export default function OwnerPanel() {
   return (
     <>
       <div className="min-h-screen bg-amber-50">
-        {/* Header */}
         <header className="bg-amber-800 text-white px-4 py-4 flex items-center justify-between shadow-md sticky top-0 z-10">
           <div className="flex items-center gap-2">
             <span className="text-2xl">☕</span>
@@ -265,7 +290,6 @@ export default function OwnerPanel() {
           </button>
         </header>
 
-        {/* Tabs */}
         <div className="flex bg-white border-b border-amber-100 sticky top-16 z-10 shadow-sm">
           {tabs.map(tab => (
             <button
@@ -285,10 +309,8 @@ export default function OwnerPanel() {
 
         <div className="p-4 max-w-lg mx-auto pb-10">
 
-          {/* ===== SEARCH TAB ===== */}
           {activeTab === 'search' && (
             <div className="space-y-4 pt-2">
-              {/* QR Scan button */}
               <button
                 onClick={() => setShowScanner(true)}
                 className="w-full bg-amber-700 text-white py-4 rounded-xl font-semibold hover:bg-amber-800 active:scale-95 transition-all flex items-center justify-center gap-2 text-base"
@@ -326,13 +348,13 @@ export default function OwnerPanel() {
               )}
 
               {foundCustomer && (
-                <div className="bg-white rounded-3xl shadow-md p-6 space-y-5">
+                <div className="bg-white rounded-3xl shadow-md p-5 space-y-4">
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="text-xl font-bold text-gray-900">{foundCustomer.name}</h3>
                       <p className="text-gray-500 text-sm">{foundCustomer.phone}</p>
                       <p className="text-gray-400 text-xs mt-1">
-                        Rewards redeemed: {foundCustomer.total_rewards || 0}
+                        {foundCustomer.stamp_count} stamps · {foundCustomer.total_rewards || 0} rewards redeemed
                       </p>
                     </div>
                     {hasReward && (
@@ -342,26 +364,11 @@ export default function OwnerPanel() {
                     )}
                   </div>
 
-                  <div>
-                    <p className="text-sm text-gray-500 mb-3">
-                      Total stamps: <strong className="text-amber-800">{foundCustomer.stamp_count}</strong>
-                      {' · '}Progress: <strong className="text-amber-800">{progressOnCard}/5</strong>
-                    </p>
-                    <div className="flex gap-3">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-12 h-12 rounded-full flex items-center justify-center text-xl transition-all ${
-                            i < progressOnCard
-                              ? 'bg-amber-700 shadow-md'
-                              : 'border-2 border-dashed border-gray-200'
-                          }`}
-                        >
-                          {i < progressOnCard ? '☕' : ''}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  <StampGrid stampCount={foundCustomer.stamp_count} />
+
+                  <p className="text-xs text-gray-400 text-center">
+                    🎁 = reward at every 5 stamps
+                  </p>
 
                   {actionMsg.text && (
                     <div className={`text-sm p-3 rounded-xl ${msgColors[actionMsg.type]}`}>
@@ -385,18 +392,11 @@ export default function OwnerPanel() {
                       {rewardLoading ? 'Processing...' : '🎁 Use Reward'}
                     </button>
                   </div>
-
-                  {hasReward && (
-                    <p className="text-amber-600 text-xs text-center">
-                      Reward available — use it before adding more stamps!
-                    </p>
-                  )}
                 </div>
               )}
             </div>
           )}
 
-          {/* ===== ADD CUSTOMER TAB ===== */}
           {activeTab === 'add' && (
             <div className="bg-white rounded-3xl shadow-md p-6 mt-2">
               <h3 className="text-lg font-bold text-gray-900 mb-6">Register New Customer</h3>
@@ -439,7 +439,6 @@ export default function OwnerPanel() {
             </div>
           )}
 
-          {/* ===== ALL CUSTOMERS TAB ===== */}
           {activeTab === 'customers' && (
             <div className="mt-2 space-y-3">
               <div className="flex items-center justify-between py-1">
@@ -463,32 +462,36 @@ export default function OwnerPanel() {
                   <p>No customers yet.</p>
                 </div>
               ) : (
-                customers.map(customer => (
-                  <div key={customer.id} className="bg-white rounded-2xl shadow-sm p-4 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-900">{customer.name}</p>
-                      <p className="text-gray-500 text-sm">{customer.phone}</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex gap-1 justify-end mb-1">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <div
-                            key={i}
-                            className={`w-5 h-5 rounded-full ${
-                              i < customer.stamp_count ? 'bg-amber-600' : 'border border-gray-200'
-                            }`}
-                          />
-                        ))}
+                customers.map(customer => {
+                  const available = rewardsAvailable(customer)
+                  const progress = customer.stamp_count % 5
+                  return (
+                    <div key={customer.id} className="bg-white rounded-2xl shadow-sm p-4 flex items-center justify-between">
+                      <div>
+                        <p className="font-semibold text-gray-900">{customer.name}</p>
+                        <p className="text-gray-500 text-sm">{customer.phone}</p>
                       </div>
-                      <p className="text-xs text-gray-400">
-                        {customer.stamp_count}/5 · {customer.total_rewards || 0} rewards
-                      </p>
-                      {customer.stamp_count >= 5 && (
-                        <p className="text-xs text-amber-600 font-semibold">🎁 Ready!</p>
-                      )}
+                      <div className="text-right">
+                        <div className="flex gap-1 justify-end mb-1">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <div
+                              key={i}
+                              className={`w-5 h-5 rounded-full ${
+                                i < (available > 0 ? 5 : progress) ? 'bg-amber-500' : 'border border-gray-200'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-gray-400">
+                          {customer.stamp_count} stamps · {customer.total_rewards || 0} redeemed
+                        </p>
+                        {available > 0 && (
+                          <p className="text-xs text-amber-600 font-semibold">🎁 {available} reward{available > 1 ? 's' : ''}!</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
           )}
