@@ -14,7 +14,7 @@ const msgColors = {
 
 function rewardsAvailable(customer) {
   if (!customer) return 0
-  return Math.floor(customer.stamp_count / 5) - (customer.total_rewards || 0)
+  return Math.floor(customer.stamp_count / 5)
 }
 
 function StampGrid({ stampCount }) {
@@ -201,7 +201,7 @@ export default function OwnerPanel() {
 
     const { data, error: updateError } = await supabase
       .from('customers')
-      .update({ total_rewards: (foundCustomer.total_rewards || 0) + 1 })
+      .update({ stamp_count: foundCustomer.stamp_count - 5, total_rewards: (foundCustomer.total_rewards || 0) + 1 })
       .eq('id', foundCustomer.id)
       .select()
       .single()

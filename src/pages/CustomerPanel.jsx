@@ -60,8 +60,7 @@ export default function CustomerPanel() {
 
   const stampCount = customer?.stamp_count || 0
   const totalRewards = customer?.total_rewards || 0
-  const rewardsEarned = Math.floor(stampCount / 5)
-  const rewardsAvailable = rewardsEarned - totalRewards
+  const rewardsAvailable = Math.floor(stampCount / 5)
   const hasReward = rewardsAvailable > 0
   const progressOnCard = stampCount % 5
   const stampsLeft = hasReward ? 0 : 5 - progressOnCard
