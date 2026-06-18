@@ -48,7 +48,8 @@ export default function OwnerPanel() {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('search')
 
-  const [searchPhone, setSearchPhone] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
   const [foundCustomer, setFoundCustomer] = useState(null)
   const [searchLoading, setSearchLoading] = useState(false)
   const [searchError, setSearchError] = useState('')
@@ -70,32 +71,41 @@ export default function OwnerPanel() {
     navigate('/')
   }
 
-  async function searchByPhone(phone) {
-    const normalized = normalizePhone(phone)
-    if (!normalized) return
-    setSearchPhone(normalized)
+  async function runSearch(query) {
+    const q = query.trim()
+    if (!q) return
     setSearchLoading(true)
     setSearchError('')
     setFoundCustomer(null)
+    setSearchResults([])
     setActionMsg({ text: '', type: '' })
 
-    const { data, error } = await supabase
+    const normalized = normalizePhone(q)
+    const { data } = await supabase
       .from('customers')
       .select('*')
-      .eq('phone', normalized)
-      .single()
+      .or(`name.ilike.%${q}%,phone.ilike.%${normalized}%`)
+      .order('name')
+      .limit(10)
 
     setSearchLoading(false)
-    if (error || !data) {
-      setSearchError('No customer found with that phone number.')
+    if (!data || data.length === 0) {
+      setSearchError('No customers found.')
+    } else if (data.length === 1) {
+      setFoundCustomer(data[0])
     } else {
-      setFoundCustomer(data)
+      setSearchResults(data)
     }
   }
 
   async function searchCustomer(e) {
     e.preventDefault()
-    await searchByPhone(searchPhone)
+    await runSearch(searchQuery)
+  }
+
+  async function searchByPhone(phone) {
+    setSearchQuery(phone)
+    await runSearch(phone)
   }
 
   async function handleQrScan(phone) {
@@ -103,10 +113,11 @@ export default function OwnerPanel() {
     const normalized = normalizePhone(phone)
     if (!normalized) return
 
-    setSearchPhone(normalized)
+    setSearchQuery(normalized)
     setSearchLoading(true)
     setSearchError('')
     setFoundCustomer(null)
+    setSearchResults([])
     setActionMsg({ text: '', type: '' })
 
     const { data, error } = await supabase
@@ -118,7 +129,7 @@ export default function OwnerPanel() {
     setSearchLoading(false)
 
     if (error || !data) {
-      setSearchError('No customer found with that phone number.')
+      setSearchError('No customer found.')
       return
     }
 
@@ -326,20 +337,38 @@ export default function OwnerPanel() {
 
               <form onSubmit={searchCustomer} className="flex gap-2">
                 <input
-                  type="tel"
-                  value={searchPhone}
-                  onChange={e => { setSearchPhone(e.target.value); setSearchError('') }}
-                  placeholder="Enter phone number..."
+                  type="text"
+                  value={searchQuery}
+                  onChange={e => { setSearchQuery(e.target.value); setSearchError(''); setSearchResults([]); setFoundCustomer(null) }}
+                  placeholder="Name or phone number..."
                   className="flex-1 border-2 border-gray-200 rounded-xl py-3 px-4 text-gray-800 focus:border-amber-400 focus:outline-none"
                 />
                 <button
                   type="submit"
-                  disabled={searchLoading || !searchPhone.trim()}
+                  disabled={searchLoading || !searchQuery.trim()}
                   className="bg-amber-800 text-white px-5 rounded-xl font-semibold hover:bg-amber-900 transition-colors disabled:opacity-50"
                 >
                   {searchLoading ? '...' : 'Find'}
                 </button>
               </form>
+
+              {searchResults.length > 1 && (
+                <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+                  {searchResults.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => { setFoundCustomer(c); setSearchResults([]) }}
+                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-amber-50 transition-colors border-b border-gray-100 last:border-0 text-left"
+                    >
+                      <div>
+                        <p className="font-semibold text-gray-900">{c.name}</p>
+                        <p className="text-gray-500 text-sm">{c.phone}</p>
+                      </div>
+                      <span className="text-xs text-amber-700 font-medium">{c.stamp_count} stamps</span>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {searchError && (
                 <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">
