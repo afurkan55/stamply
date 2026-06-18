@@ -15,7 +15,8 @@ const melbourneFmt = new Intl.DateTimeFormat('en-AU', {
 })
 
 function formatDate(dateString) {
-  return melbourneFmt.format(new Date(dateString))
+  const utc = dateString.endsWith('Z') || dateString.includes('+') ? dateString : dateString + 'Z'
+  return melbourneFmt.format(new Date(utc))
 }
 
 export default function CustomerPanel() {
