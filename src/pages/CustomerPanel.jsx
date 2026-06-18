@@ -5,15 +5,17 @@ import { supabase } from '../lib/supabase'
 
 const CARD_SLOTS = 20
 
+const melbourneFmt = new Intl.DateTimeFormat('en-AU', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'Australia/Melbourne',
+})
+
 function formatDate(dateString) {
-  return new Date(dateString).toLocaleString('en-AU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Australia/Melbourne',
-  })
+  return melbourneFmt.format(new Date(dateString))
 }
 
 export default function CustomerPanel() {
