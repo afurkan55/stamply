@@ -145,13 +145,6 @@ export default function CustomerPanel() {
               : `${stampsLeft} more stamp${stampsLeft !== 1 ? 's' : ''} until your next free drink`}
           </p>
 
-          <div className="mt-3 bg-gray-100 rounded-full h-2 overflow-hidden">
-            <div
-              className="bg-amber-500 h-2 rounded-full transition-all duration-500"
-              style={{ width: `${(progressOnCard / 5) * 100}%` }}
-            />
-          </div>
-
           {stampCount > 0 && (
             <p className="text-center text-xs text-gray-400 mt-4 pt-4 border-t border-gray-100">
               {totalRewards > 0
